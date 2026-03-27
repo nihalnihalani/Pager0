@@ -1,207 +1,143 @@
-# Project Rules for Claude Code
+# SentinelCall — Autonomous Incident Response Agent
 
 ## Project Overview
 
-**RocketRide Server** — A high-performance data processing engine with a C++ core, Python-extensible node system, AI/ML capabilities, and cross-platform clients (TypeScript, Python, MCP).
+**SentinelCall** — An autonomous SRE agent that monitors infrastructure, detects anomalies, diagnoses root cause, calls the on-call engineer via AI phone call, and publishes tiered incident reports — all without human intervention.
+
+**Hackathon:** Deep Agents Hackathon | **Deadline:** Mar 27, 2026 @ 4:30 PM PDT
 
 ### Architecture
 
-- **Core Engine**: C++ (C++17) — native multithreading, CMake build system, vcpkg for dependencies
-- **Pipeline Nodes**: Python (66+ nodes) — LLM providers, vector DBs, embeddings, OCR, NER, agents, etc.
-- **Frontend Apps**: TypeScript/React — VS Code extension, Chat UI, Dropper UI
-- **Client SDKs**: TypeScript (`packages/client-typescript`), Python (`packages/client-python`), MCP (`packages/client-mcp`)
-- **Build System**: Custom `./builder` CLI wrapping `scripts/build.js` — discovers and orchestrates build tasks across the monorepo
+- **Core Agent**: Python (FastAPI) — orchestrates the full incident response pipeline
+- **Data Ingestion**: Airbyte (PyAirbyte) — dynamic connector orchestration for real-time metrics
+- **Authentication**: Auth0 — CIBA backchannel authorization + Token Vault for API credentials
+- **Phone Escalation**: Bland AI — interactive two-way voice diagnosis with function calling
+- **Incident Reports**: Ghost CMS — tiered publishing (executive vs. engineering) via Admin API
+- **LLM Gateway**: TrueFoundry — dynamic model escalation (cheap→expensive) + guardrails
+- **Code Analysis**: Macroscope — PR-linked root cause identification via GitHub App
+- **Observability**: Overmind — LLM call tracing + prompt optimization recommendations
 
-### Monorepo Structure
+### Project Structure
 
 ```text
-apps/
-  chat-ui/              # Chat interface (React)
-  dropper-ui/           # File dropper interface (React)
-  engine/               # Engine app wrapper
-  vscode/               # VS Code extension
-    docs/api/           # SDK documentation (source of truth for pipeline API)
-packages/
-  ai/                   # AI utilities
-  client-mcp/           # MCP client SDK
-  client-python/        # Python client SDK
-  client-typescript/    # TypeScript client SDK
-  java/                 # Java components (JDK 17)
-  server/               # C++ engine core (CMake)
-  shared-ui/            # Shared React components
-  tika/                 # Apache Tika integration
-  vcpkg/                # C++ dependency management
-nodes/
-  src/nodes/            # 66+ Python pipeline nodes
-  scripts/              # Node build scripts
-  test/                 # Node tests
-scripts/                # Build system scripts
-docker/                 # Dockerfile.engine
-docs/                   # Architecture docs, ADRs, guides
-test/                   # Integration tests
+sentinelcall/
+  agent.py                # Main agent orchestrator loop
+  bland_caller.py         # Bland AI phone call + pathway integration
+  bland_pathway.py        # Interactive conversation decision tree
+  airbyte_monitor.py      # Airbyte data ingestion + dynamic connectors
+  airbyte_dynamic.py      # Dynamic connector creation per incident type
+  anomaly_detector.py     # Statistical + LLM anomaly detection
+  auth0_vault.py          # Auth0 Token Vault for API credentials
+  auth0_ciba.py           # CIBA backchannel auth (phone = approval)
+  truefoundry_gateway.py  # TrueFoundry AI Gateway + model escalation
+  truefoundry_guardrails.py # Guardrails config
+  ghost_publisher.py      # Ghost Admin API setup + JWT auth
+  ghost_incident_reports.py # Tiered incident report publishing
+  ghost_webhooks.py       # Ghost webhook registration
+  macroscope_rca.py       # PR-linked root cause analysis
+  overmind_setup.py       # Overmind initialization + demo report
+  mock_infra.py           # Simulated infrastructure for demo
+  dashboard.py            # FastAPI dashboard + API endpoints
+  webhook_server.py       # Bland webhook receiver
+  requirements.txt        # Python dependencies
+  .env.example            # Environment variable template
 ```
 
 ### Key Technical Decisions
 
-- Pipeline nodes are Python modules under `nodes/src/nodes/` — each node handles one task (LLM call, vector DB write, embedding, etc.)
-- Nodes compose into pipelines via JSON `.pipe` files rendered in the VS Code extension's visual builder
-- The C++ engine handles all data transport and orchestration; Python nodes are loaded at runtime
-- The `./builder` CLI is the primary build tool — do NOT use raw cmake/make/npm commands for building unless debugging a specific module
-- SDK documentation at `apps/vscode/docs/api/` is the source of truth for pipeline and client API behavior
+- All LLM calls route through TrueFoundry AI Gateway — never call providers directly
+- Auth0 Token Vault manages ALL third-party API credentials — agent never sees raw secrets
+- Airbyte connectors are created dynamically based on incident type, not pre-configured
+- Ghost publishes TWO reports per incident: public (executives) and members-only (engineers)
+- Bland AI uses pathway system with function calling for interactive mid-call data queries
+- Auth0 CIBA flow is triggered by the engineer's voice approval on the Bland call
+- Overmind auto-instruments all LLM calls via `overmind.init()` — zero code changes needed
+- Macroscope GitHub App analyzes PRs and the agent queries its reviews to identify causal PRs
 
-### Dependencies & Tooling
+### Dependencies
 
-- **Node.js** >= 18, **pnpm** >= 8 (monorepo workspace manager)
-- **Python** >= 3.10, **ruff** for linting/formatting, **pytest** for testing
-- **C++17**, **CMake**, **vcpkg** (2026.02.27)
-- **Java** JDK 17, Maven 3.9.6 (for Tika)
-- **Lefthook** for pre-commit hooks (ESLint, Prettier, ruff check, ruff format)
-- **ESLint** (flat config) + **Prettier** for TypeScript/JavaScript
+- **Python** >= 3.10
+- **FastAPI** + **uvicorn** for dashboard and webhook server
+- **PyAirbyte** (`airbyte`) for data connectors
+- **auth0-python** for Auth0 integration
+- **requests** for API calls (Bland, Ghost, GitHub)
+- **PyJWT** for Ghost Admin API authentication
+- **overmind** for LLM observability
+- **openai** SDK (used with TrueFoundry base_url override)
+- **python-dotenv** for environment variable management
 
-### Important Constraints
-
-- Pre-commit hooks run ESLint, Prettier, ruff check, and ruff format in parallel via Lefthook
-- If a pre-commit hook fails, fix the issue and create a NEW commit (never amend)
-- TypeScript uses strict mode, ES2022 target, bundler module resolution
-- Python uses single quotes (ruff), PEP 257 docstrings, line length effectively unlimited (320)
-- Prettier config: tabs, single quotes, trailing comma es5, semicolons, printWidth 1000
-
-## Auto-Commit and Push Rule
-
-**MANDATORY**: After every change you make to any file in this repository, you MUST:
-
-1. Stage the changed files: `git add <specific files you changed>`
-2. Commit with a clear message describing what changed: `git commit -m "description of change"`
-3. Push to `nihal`: `git push origin nihal`
-
-This applies to EVERY change — no exceptions. Do not batch changes. Commit and push immediately after each logical change.
-
-- Always push to `nihal`
-- Never force push
-- Use descriptive commit messages that explain the "why"
-- If a pre-commit hook fails, fix the issue and create a NEW commit (never amend)
-
-## Branching & Commit Conventions
-
-- **Main branch**: `develop` (integration branch for features)
-- **Branch naming**: `feature/*`, `bugfix/*`, `hotfix/*`
-- **Commit format**: [Conventional Commits](https://www.conventionalcommits.org/)
-  - `feat:` / `feat(scope):` — new feature
-  - `fix:` / `fix(scope):` — bug fix
-  - `docs:` — documentation
-  - `refactor:` — code refactoring
-  - `chore:` — build/tooling changes
-  - `test:` — test changes
-- **Scopes used in this project**: `vscode`, `engine`, `nodes`, `ui`, `builder`, `agent`, `docs`
-- PR titles are validated with `action-semantic-pull-request` in CI — they must follow conventional commit format
-- All PRs target `develop`
-
-## Build & Test Commands
+### Environment Variables
 
 ```bash
-# Build
-./builder server:build          # Build C++ engine
-./builder nodes:build           # Build Python nodes
-./builder --help                # List all available actions
-./builder <a>:<b> --parallel    # Run multiple build tasks in parallel
-
-# Test
-./builder test                  # Run all tests
-pnpm run test                   # All tests via pnpm
-pnpm run test:native            # C++ tests only
-pnpm run test:python            # Python tests only
-pnpm run test:typescript        # TypeScript tests only
-
-# Lint
-npx eslint <files>              # TypeScript/JavaScript
-npx prettier --check <files>    # Formatting check
-ruff check <files>              # Python lint
-ruff format --check <files>     # Python format check
+AUTH0_DOMAIN=           # Auth0 tenant domain
+AUTH0_CLIENT_ID=        # Auth0 application client ID
+AUTH0_CLIENT_SECRET=    # Auth0 application client secret
+BLAND_API_KEY=          # Bland AI API key
+GHOST_URL=              # Ghost instance URL
+GHOST_ADMIN_API_KEY=    # Ghost Admin API key (id:secret format)
+TRUEFOUNDRY_API_KEY=    # TrueFoundry gateway API key
+TRUEFOUNDRY_ENDPOINT=   # TrueFoundry gateway endpoint URL
+OVERMIND_API_KEY=       # Overmind API key
+ANTHROPIC_API_KEY=      # Anthropic API key (for TrueFoundry backend)
 ```
 
-## PR Creation Guidelines
+## Sponsor Tool Usage (Creative/Non-obvious)
 
-When creating PRs for this project:
+Each tool is used for its UNPOPULAR or non-core features, not basic usage:
 
-1. Branch from `develop` — `git checkout -b feature/your-feature develop`
-2. Follow conventional commit format for all commits
-3. PR title must follow conventional commits (enforced by CI)
-4. Fill out the PR template:
-   - Summary (1-3 bullet points)
-   - Type (feature, fix, refactor, docs, chore)
-   - Testing checklist
-   - Related issues
-5. Target `develop` branch
-6. Ensure pre-commit hooks pass (ESLint, Prettier, ruff)
-7. No secrets or credentials in commits
+| Tool | Basic Use (DON'T) | Our Creative Use (DO) |
+|---|---|---|
+| Auth0 | Login page | CIBA backchannel auth via phone call + Token Vault |
+| Airbyte | Static data pull | Dynamic connector creation based on incident type |
+| Ghost | Publish a blog post | Tiered incident reports (exec vs eng) + webhooks |
+| Bland | Make a phone call | Interactive pathway with function calling mid-call |
+| TrueFoundry | Proxy LLM calls | Dynamic model escalation by severity + guardrails |
+| Macroscope | Install GitHub app | PR-linked root cause identification in reports |
+| Overmind | 2-line wrapper | Live optimization recommendations shown in demo |
 
-## Agent Team Strategy
+## Build & Run
 
-Use agent teams for any task that benefits from parallel work across independent modules. Teams are enabled via `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in settings.
+```bash
+# Setup
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # Fill in API keys
 
-### When to Use Teams
+# Run
+uvicorn dashboard:app --reload --port 8000
 
-- Multi-file features spanning frontend, backend, and tests
-- Research + implementation in parallel
-- Debugging with competing hypotheses
-- Any task with 3+ independent subtasks that don't touch the same files
+# Trigger demo incident
+curl -X POST http://localhost:8000/api/trigger-incident
+```
 
-### When NOT to Use Teams
+## Demo Flow
 
-- Sequential tasks with heavy dependencies between steps
-- Changes to a single file or tightly coupled files
-- Simple bug fixes or small tweaks
+1. Dashboard shows all services green
+2. Trigger incident → dashboard turns red
+3. Agent detects anomaly via Airbyte → escalates LLM via TrueFoundry
+4. Agent dynamically creates new Airbyte connectors to investigate
+5. Macroscope identifies the causal PR
+6. Bland AI calls on-call engineer with interactive briefing
+7. Engineer approves remediation → Auth0 CIBA completes
+8. Ghost publishes tiered incident reports (exec + eng)
+9. Overmind dashboard shows full agent decision trace
+10. Resolution in 47 seconds vs. industry average 45 minutes
 
-### Team Configuration
+## Prize Targets
 
-- Start with 3-5 teammates for most workflows
-- Use delegate mode (`Shift+Tab`) when the lead should only coordinate
-- Use `SendMessage` (type: "message") for direct teammate communication
-- Use `TaskCreate`/`TaskUpdate`/`TaskList` for work coordination
-- Mark tasks `completed` only after verification passes
+- Auth0: $1,000 Amazon GC
+- Airbyte: $1,000 Visa GC
+- Ghost: $2,000 Visa ($500×4)
+- Macroscope: $1,000 Cash
+- Overmind: $651 Cash
+- TrueFoundry: $600 Cash
+- Bland: $500 Cash
+- **Total: $6,751**
 
-## Workflow Orchestration
+## Critical Rules
 
-### 1. Plan Mode Default
-
-- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
-- If something goes sideways, STOP and re-plan immediately
-- Write detailed specs upfront to reduce ambiguity
-
-### 2. Subagent Strategy
-
-- Use subagents to keep main context window clean
-- Offload research, exploration, and parallel analysis to subagents
-- One task per subagent for focused execution
-
-### 3. Verification Before Done
-
-- Never mark a task complete without proving it works
-- Run tests, check logs, demonstrate correctness
-- Ask: "Would a staff engineer approve this?"
-
-### 4. Autonomous Bug Fixing
-
-- When given a bug report: just fix it. Don't ask for hand-holding
-- Point at logs, errors, failing tests — then resolve them
-- Go fix failing CI tests without being told how
-
-## Documentation Reference
-
-Before writing any RocketRide pipeline or SDK code, read the docs at `apps/vscode/docs/api/`:
-
-| Need             | File                                                     |
-| ---------------- | -------------------------------------------------------- |
-| Working examples | ROCKETRIDE_QUICKSTART.md                                 |
-| Setup checklist  | ROCKETRIDE_README.md                                     |
-| Client methods   | ROCKETRIDE_python_API.md or ROCKETRIDE_typescript_API.md |
-| Pipeline rules   | ROCKETRIDE_PIPELINE_RULES.md                             |
-| Components       | ROCKETRIDE_COMPONENT_REFERENCE.md                        |
-| Troubleshooting  | ROCKETRIDE_COMMON_MISTAKES.md                            |
-
-## Core Principles
-
-- **Simplicity First**: Make every change as simple as possible. Minimal code impact.
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
-- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
-- **Demand Elegance**: For non-trivial changes, pause and ask "is there a more elegant way?"
+1. **Test Bland phone call FIRST** — if it fails after 15 min, pivot to PulsePost (swap Bland for deeper Ghost)
+2. **Never hardcode API keys** — everything through Auth0 Token Vault or .env
+3. **Every tool must use a creative/unpopular feature** — no checkbox integrations
+4. **Demo > code quality** — a working demo with mocked data beats perfect code with a broken demo
+5. **Commit frequently** — clean git history for judges reviewing the repo
