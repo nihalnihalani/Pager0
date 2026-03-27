@@ -268,7 +268,7 @@ def make_incident_call(
     payload: dict[str, Any] = {
         "phone_number": phone_number,
         "voice": "Josh",
-        "wait_for_greeting": True,
+        "wait_for_greeting": False,
         "record": True,
         "max_duration": 5,
         "model": "base",
@@ -287,30 +287,14 @@ def make_incident_call(
     if WEBHOOK_BASE_URL.startswith("https://"):
         payload["webhook"] = f"{WEBHOOK_BASE_URL}/bland/webhook"
 
-    # Pathway and task are mutually exclusive.
-    # Mock/fallback pathway IDs (demo- or fallback-) don't exist on Bland servers
-    # and cause the call to hang up immediately — use task prompt instead.
-    _is_real_pathway = pathway_id and not any(
-        pathway_id.startswith(p) for p in ("pathway-demo-", "pathway-fallback-")
-    )
-    if _is_real_pathway:
-        payload["pathway_id"] = pathway_id  # type: ignore[index]
-        # Pass incident context as request_data so pathway can use {{variable}} syntax
-        payload["request_data"] = {
-            "service": incident_context.get("service", "unknown"),
-            "severity": incident_context.get("severity", "SEV-2"),
-            "description": incident_context.get("description", "Anomaly detected."),
-            "root_cause": incident_context.get("root_cause", "Under investigation."),
-            "recommended_action": incident_context.get("recommended_action", "Restart pods."),
-            "engineer_id": incident_context.get("engineer_id", "engineer-001"),
-        }
-    else:
-        payload["task"] = _build_task_prompt(incident_context)
+    # Always use task prompt. Only include tools when running with a public HTTPS
+    # URL — Bland rejects tool URLs that don't start with https://.
+    payload["task"] = _build_task_prompt(incident_context)
+    if WEBHOOK_BASE_URL.startswith("https://"):
         payload["tools"] = _build_tools()
-        # Provide incident data accessible via {{variable}} in task prompt
-        payload["request_data"] = {
-            "engineer_id": incident_context.get("engineer_id", "engineer-001"),
-        }
+    payload["request_data"] = {
+        "engineer_id": incident_context.get("engineer_id", "engineer-001"),
+    }
 
     try:
         logger.info("[REAL] Sending Bland AI call to %s", phone_number)
