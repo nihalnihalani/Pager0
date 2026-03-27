@@ -1120,6 +1120,12 @@ initPipe();initSp();connectSSE();refreshData();setInterval(refreshData,5000);
 </html>"""
 
 
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    """Redirect root to dashboard."""
+    return HTMLResponse(content='<meta http-equiv="refresh" content="0; url=/dashboard">', status_code=200)
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
     """Serve the main dashboard."""

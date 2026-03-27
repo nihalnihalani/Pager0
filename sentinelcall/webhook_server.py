@@ -26,9 +26,14 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
+from sentinelcall.auth0_ciba import CIBAManager
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["bland"])
+
+# Shared CIBA manager instance (used to record voice approvals from Bland)
+_ciba_manager = CIBAManager()
 
 # Module-level storage for call results, keyed by call_id
 call_results: dict[str, dict[str, Any]] = {}
@@ -295,6 +300,18 @@ def _handle_trigger_ciba_approval(parameters: dict[str, Any], call_id: str) -> d
             "engineer_id": engineer_id,
             "action_approved": action_approved,
         }
+
+    # Propagate approval to the CIBA state machine so any pending auth_req is completed
+    try:
+        pending = [
+            req_id for req_id, req in _ciba_manager._requests.items()
+            if req.get("status") == "pending"
+        ]
+        for req_id in pending:
+            _ciba_manager.simulate_approval(req_id)
+            logger.info("CIBA auth_req %s approved via Bland voice tool call", req_id)
+    except Exception as exc:
+        logger.warning("Could not propagate CIBA approval from webhook: %s", exc)
 
     return {
         "success": True,

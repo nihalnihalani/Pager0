@@ -271,6 +271,7 @@ class SentinelCallAgent:
                 "pr_number": macroscope_result.get("pr_number"),
                 "pr_title": macroscope_result.get("pr_title"),
                 "confidence": macroscope_result.get("confidence"),
+                "explanation": macroscope_result.get("explanation", ""),
             }
             incident_record["steps"]["macroscope_rca"] = {
                 "duration_ms": round(step_time * 1000, 1),
