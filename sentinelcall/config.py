@@ -2,7 +2,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Auth0
 AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN", "")
