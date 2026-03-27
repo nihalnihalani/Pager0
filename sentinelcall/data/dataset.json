@@ -1,0 +1,192 @@
+[
+  {
+    "input": {
+      "service": "payment-service",
+      "incident_type": "payment_service_error",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 6,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  },
+  {
+    "input": {
+      "service": "api-gateway",
+      "incident_type": "api_latency_spike",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 5,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  },
+  {
+    "input": {
+      "service": "database-primary",
+      "incident_type": "database_connection_pool",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 4,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  },
+  {
+    "input": {
+      "service": "user-service",
+      "incident_type": "memory_leak",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 4,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  },
+  {
+    "input": {
+      "service": "notification-service",
+      "incident_type": "payment_service_error",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 6,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  },
+  {
+    "input": {
+      "service": "payment-service",
+      "incident_type": "api_latency_spike",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 5,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  },
+  {
+    "input": {
+      "service": "api-gateway",
+      "incident_type": "database_connection_pool",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 4,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  },
+  {
+    "input": {
+      "service": "database-primary",
+      "incident_type": "memory_leak",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 4,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  },
+  {
+    "input": {
+      "service": "payment-service",
+      "incident_type": "memory_leak",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 4,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  },
+  {
+    "input": {
+      "service": "api-gateway",
+      "incident_type": "payment_service_error",
+      "severity_expected": "SEV-1",
+      "should_call_engineer": true,
+      "should_publish_reports": true
+    },
+    "expected_output": {
+      "severity": "SEV-1",
+      "anomalies_detected": 6,
+      "model_used": "claude-opus-4-6",
+      "call_initiated": true,
+      "reports_published": true,
+      "ciba_approved": true,
+      "connector_count": 1,
+      "status": "resolved"
+    }
+  }
+]
