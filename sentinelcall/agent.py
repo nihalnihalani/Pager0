@@ -293,7 +293,11 @@ class SentinelCallAgent:
             auth_req_id = ciba_result.get("auth_req_id", "")
 
             # Fetch a token from the vault to demonstrate the feature
-            vault_token = self.token_vault.get_token("github")
+            try:
+                vault_token = self.token_vault.get_token("github")
+            except Exception as exc:
+                logger.warning("Token Vault unavailable (%s) — using mock token", exc)
+                vault_token = {"service": "github", "source": "mock"}
             step_time = time.time() - step_start
 
             incident_record["ciba_auth_req_id"] = auth_req_id

@@ -321,7 +321,10 @@ def create_pathway(incident_context: dict[str, Any] | None = None) -> dict[str, 
         )
         create_resp.raise_for_status()
         create_data = create_resp.json()
-        new_pathway_id = create_data.get("pathway_id")
+        new_pathway_id = (
+            create_data.get("pathway_id")
+            or create_data.get("data", {}).get("pathway_id")
+        )
 
         if not new_pathway_id:
             raise ValueError(f"No pathway_id in create response: {create_data}")

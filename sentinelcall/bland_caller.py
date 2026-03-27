@@ -273,7 +273,6 @@ def make_incident_call(
         "max_duration": 5,
         "model": "base",
         "temperature": 0.4,
-        "webhook": f"{WEBHOOK_BASE_URL}/bland/webhook",
         "metadata": {
             "incident_id": incident_context.get("incident_id", f"INC-{uuid.uuid4().hex[:8]}"),
             "severity": incident_context.get("severity", "SEV-2"),
@@ -284,9 +283,18 @@ def make_incident_call(
     if ciba_auth_req_id:
         payload["metadata"]["ciba_auth_req_id"] = ciba_auth_req_id
 
-    # Pathway and task are mutually exclusive
-    if pathway_id:
-        payload["pathway_id"] = pathway_id
+    # Bland requires webhook URL to start with https:// — skip if running locally
+    if WEBHOOK_BASE_URL.startswith("https://"):
+        payload["webhook"] = f"{WEBHOOK_BASE_URL}/bland/webhook"
+
+    # Pathway and task are mutually exclusive.
+    # Mock/fallback pathway IDs (demo- or fallback-) don't exist on Bland servers
+    # and cause the call to hang up immediately — use task prompt instead.
+    _is_real_pathway = pathway_id and not any(
+        pathway_id.startswith(p) for p in ("pathway-demo-", "pathway-fallback-")
+    )
+    if _is_real_pathway:
+        payload["pathway_id"] = pathway_id  # type: ignore[index]
         # Pass incident context as request_data so pathway can use {{variable}} syntax
         payload["request_data"] = {
             "service": incident_context.get("service", "unknown"),
@@ -326,7 +334,10 @@ def make_incident_call(
 
         return data
     except requests.RequestException as exc:
-        logger.error("[REAL] Bland AI call failed: %s — falling back to mock.", exc)
+        try:
+            logger.error("[REAL] Bland AI call failed: %s — response body: %s", exc, exc.response.text if hasattr(exc, 'response') and exc.response is not None else "N/A")
+        except Exception:
+            logger.error("[REAL] Bland AI call failed: %s — falling back to mock.", exc)
         result = _mock_call_response(phone_number, incident_context)
         result["fallback_reason"] = str(exc)
         return result
