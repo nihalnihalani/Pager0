@@ -1,4 +1,4 @@
-"""Centralized configuration for Page0. All modules import from here."""
+"""Centralized configuration for Pager0. All modules import from here."""
 import os
 from dotenv import load_dotenv
 
@@ -37,7 +37,7 @@ ON_CALL_PHONE = os.getenv("ON_CALL_PHONE", "+1234567890")
 ON_CALL_ENGINEER_ID = os.getenv("ON_CALL_ENGINEER_ID", "engineer-001")
 
 # GitHub
-GITHUB_REPO = os.getenv("GITHUB_REPO", "nihalnihalani/DAH0327")
+GITHUB_REPO = os.getenv("GITHUB_REPO", "nihalnihalani/Pager0")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 
 # Webhook

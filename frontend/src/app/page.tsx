@@ -97,7 +97,7 @@ export default function Home() {
           <span className="text-white">.</span>
         </h2>
         <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-          Page0 is an autonomous SRE agent that monitors infrastructure, detects anomalies,
+          Pager0 is an autonomous SRE agent that monitors infrastructure, detects anomalies,
           diagnoses root cause, calls the on-call engineer via AI phone call, and publishes
           tiered incident reports — all without human intervention.
         </p>
@@ -192,7 +192,7 @@ export default function Home() {
         <div className="max-w-2xl mx-auto text-center">
           <h3 className="text-3xl font-bold mb-4 text-white">See it in action</h3>
           <p className="text-gray-400 mb-8">
-            Trigger a simulated incident and watch Page0 resolve it autonomously.
+            Trigger a simulated incident and watch Pager0 resolve it autonomously.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
@@ -203,7 +203,7 @@ export default function Home() {
               Go to Dashboard
             </a>
             <a
-              href="https://github.com/nihalnihalani/DAH0327"
+              href="https://github.com/nihalnihalani/Pager0"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-700 px-8 py-3 text-gray-300 font-semibold transition-colors hover:bg-gray-900 hover:border-gray-500"
@@ -218,7 +218,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-8 px-6 border-t border-gray-800 text-center">
         <p className="text-gray-500 text-sm">
-          <span className="text-[#8b5cf6] font-semibold">Page0</span>
+          <span className="text-[#8b5cf6] font-semibold">Pager0</span>
           {" — "}Deep Agents Hackathon 2026
         </p>
       </footer>
