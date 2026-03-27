@@ -16,7 +16,7 @@ banner() {
     echo ""
     echo -e "${CYAN}${BOLD}"
     echo "  ╔═══════════════════════════════════════════════════════╗"
-    echo "  ║             Page0 — Autonomous SRE Agent              ║"
+    echo "  ║             Pager0 — Autonomous SRE Agent              ║"
     echo "  ║     Deep Agents Hackathon | March 27, 2026           ║"
     echo "  ╚═══════════════════════════════════════════════════════╝"
     echo -e "${NC}"
@@ -174,12 +174,13 @@ ok "All modules loaded successfully"
 # ------------------------------------------------------------------
 # 8. Launch
 # ------------------------------------------------------------------
-step "Starting Page0..."
+step "Starting Pager0..."
 echo ""
 echo -e "${BOLD}  Landing:    ${CYAN}http://localhost:8000${NC}"
 echo -e "${BOLD}  Dashboard:  ${CYAN}http://localhost:8000/dashboard${NC}"
 echo -e "${BOLD}  API Status: ${CYAN}http://localhost:8000/api/status${NC}"
 echo -e "${BOLD}  Trigger:    ${CYAN}curl -X POST http://localhost:8000/api/trigger-incident${NC}"
+echo -e "${BOLD}  Debate:     ${CYAN}curl -X POST http://localhost:8000/api/trigger-debate${NC}"
 echo -e "${BOLD}  API Docs:   ${CYAN}http://localhost:8000/docs${NC}"
 echo ""
 echo -e "${GREEN}${BOLD}  Press Ctrl+C to stop the server${NC}"
