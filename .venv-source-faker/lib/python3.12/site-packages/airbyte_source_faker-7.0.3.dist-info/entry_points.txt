@@ -1,0 +1,3 @@
+[console_scripts]
+source-faker=source_faker.run:run
+
