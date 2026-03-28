@@ -14,7 +14,6 @@ from sentinelcall.anomaly_detector import AnomalyDetector
 from sentinelcall.auth0_ciba import CIBAManager
 from sentinelcall.auth0_vault import TokenVault
 from sentinelcall.bland_caller import get_call_transcript, make_incident_call
-from sentinelcall.bland_pathway import create_pathway
 from sentinelcall.config import ON_CALL_ENGINEER_ID, WEBHOOK_BASE_URL
 from sentinelcall.ghost_incident_reports import IncidentReportPublisher
 from sentinelcall.ghost_publisher import GhostPublisher
@@ -354,19 +353,8 @@ class SentinelCallAgent:
             )
             await asyncio.sleep(1.0)
 
-            # Step 7: phone call
+            # Step 7: phone call (task+tools mode — more reliable than pathway)
             step_start = time.time()
-            pathway_result = create_pathway(
-                {
-                    "service": service,
-                    "severity": incident_record["severity"],
-                    "description": diagnosis_text[:300],
-                    "root_cause": incident_record["root_cause"][:300],
-                    "recommended_action": recommended_action,
-                    "engineer_id": ON_CALL_ENGINEER_ID,
-                    "auth_req_id": auth_req_id,
-                }
-            )
             call_result = make_incident_call(
                 incident_context={
                     "incident_id": incident_id,
@@ -378,20 +366,18 @@ class SentinelCallAgent:
                     "engineer_id": ON_CALL_ENGINEER_ID,
                     "ciba_auth_req_id": auth_req_id,
                 },
-                pathway_id=pathway_result.get("pathway_id"),
                 ciba_auth_req_id=auth_req_id,
             )
             incident_record["call_id"] = call_result.get("call_id", "unknown")
             incident_record["steps"]["bland_call"] = {
                 "duration_ms": round((time.time() - step_start) * 1000, 1),
                 "call_id": incident_record["call_id"],
-                "pathway_id": pathway_result.get("pathway_id"),
                 "call_status": call_result.get("status"),
                 "mock": call_result.get("mock", False),
             }
             self.tracer.record_decision(
                 step="bland_ai_phone_call",
-                input_data={"pathway_id": pathway_result.get("pathway_id"), "engineer": ON_CALL_ENGINEER_ID},
+                input_data={"engineer": ON_CALL_ENGINEER_ID},
                 output_data={"call_id": incident_record["call_id"], "status": call_result.get("status")},
                 model_used="bland_ai",
             )

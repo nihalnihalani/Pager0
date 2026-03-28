@@ -122,10 +122,6 @@ def _build_tools() -> list[dict[str, Any]]:
                 },
                 "required": ["service_name"],
             },
-            "response": {
-                "metrics_summary": "$.metrics",
-                "status": "$.metrics.*.status",
-            },
             "speech": "Let me pull up the live metrics for you now.",
             "timeout": 10000,
         },
@@ -171,10 +167,6 @@ def _build_tools() -> list[dict[str, Any]]:
                 },
                 "required": ["auth_req_id", "engineer_id", "action_approved"],
             },
-            "response": {
-                "auth_status": "$.status",
-                "auth_request_id": "$.auth_request_id",
-            },
             "speech": "Recording your authorization now.",
             "timeout": 10000,
         },
@@ -206,10 +198,6 @@ def _build_tools() -> list[dict[str, Any]]:
                     },
                 },
                 "required": ["reason"],
-            },
-            "response": {
-                "escalation_status": "$.status",
-                "escalation_id": "$.escalation_id",
             },
             "speech": "Initiating escalation to VP of Engineering now.",
             "timeout": 10000,
