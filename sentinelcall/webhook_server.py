@@ -19,15 +19,16 @@ Ref:
 Uses APIRouter so it can be mounted in the main dashboard app.
 """
 
-import hashlib
-import hmac
 import logging
-import os
 import time
 from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+
+from sentinelcall.config import BLAND_WEBHOOK_SECRET
+from sentinelcall.persistence import store
+from sentinelcall.security import verify_hmac_sha256
 
 logger = logging.getLogger(__name__)
 
@@ -38,51 +39,6 @@ call_results: dict[str, dict[str, Any]] = {}
 
 # Module-level storage for function call logs
 function_call_log: list[dict[str, Any]] = []
-
-
-# ---------------------------------------------------------------------------
-# Bland webhook signature verification
-# ---------------------------------------------------------------------------
-
-
-async def verify_bland_signature(request: Request, body: bytes) -> bool:
-    """Verify the HMAC-SHA256 signature on an incoming Bland webhook request.
-
-    If ``BLAND_WEBHOOK_SECRET`` is not set the check is skipped (dev/demo mode).
-
-    Args:
-        request: The incoming FastAPI request (used to read headers).
-        body: The raw request body bytes.
-
-    Returns:
-        ``True`` if the signature is valid or verification is disabled;
-        ``False`` if the signature is present but does not match.
-    """
-    from sentinelcall.config import BLAND_WEBHOOK_SECRET
-    secret = BLAND_WEBHOOK_SECRET or None
-    if not secret:
-        logger.warning(
-            "BLAND_WEBHOOK_SECRET not set — skipping Bland webhook signature verification (demo mode)."
-        )
-        return True
-
-    signature_header = request.headers.get("X-Bland-Signature", "")
-    if not signature_header:
-        logger.warning("Bland webhook request missing X-Bland-Signature header.")
-        return False
-
-    expected = hmac.new(
-        secret.encode("utf-8"),
-        body,
-        hashlib.sha256,
-    ).hexdigest()
-
-    if hmac.compare_digest(expected, signature_header):
-        logger.debug("Bland webhook signature verified successfully.")
-        return True
-
-    logger.warning("Bland webhook signature mismatch — rejecting request.")
-    return False
 
 
 # ---------------------------------------------------------------------------
@@ -198,12 +154,15 @@ async def bland_webhook(request: Request) -> JSONResponse:
       - variables, summary, call_length, metadata, price, recording_url
     """
     raw_body = await request.body()
-    if not await verify_bland_signature(request, raw_body):
-        return JSONResponse({"error": "invalid signature"}, status_code=401)
+    signature = request.headers.get("X-Webhook-Signature")
+    verified = True
+    if BLAND_WEBHOOK_SECRET:
+        verified = verify_hmac_sha256(BLAND_WEBHOOK_SECRET, raw_body, signature)
+        if not verified:
+            raise HTTPException(status_code=401, detail="Invalid Bland webhook signature")
 
     try:
-        import json as _json
-        body = _json.loads(raw_body)
+        body = await request.json()
     except Exception:
         return JSONResponse({"error": "invalid JSON"}, status_code=400)
 
@@ -217,6 +176,13 @@ async def bland_webhook(request: Request) -> JSONResponse:
     logger.info(
         "Bland webhook received: call_id=%s status=%s completed=%s answered_by=%s",
         call_id, status, completed, answered_by,
+    )
+    store.record_webhook_event(
+        provider="bland",
+        event_type="post_call",
+        payload=body,
+        verified=verified,
+        call_id=call_id,
     )
 
     # Store/update call result
@@ -254,6 +220,22 @@ async def bland_webhook(request: Request) -> JSONResponse:
             auth_result["authorized"],
             auth_result.get("phrase_matched"),
         )
+        app_agent = getattr(request.app.state, "agent", None)
+        metadata = body.get("metadata", {})
+        if (
+            app_agent is not None
+            and auth_result["authorized"]
+            and metadata.get("ciba_auth_req_id")
+        ):
+            await app_agent.approve_incident_from_voice(
+                auth_req_id=metadata["ciba_auth_req_id"],
+                call_id=call_id,
+                transcript_data={
+                    "transcripts": transcripts,
+                    "concatenated_transcript": body.get("concatenated_transcript", ""),
+                },
+                approval_source="post_call_webhook",
+            )
 
     return JSONResponse({"received": True, "call_id": call_id})
 
@@ -276,12 +258,15 @@ async def bland_function_call(request: Request) -> JSONResponse:
     (JSONPath extraction) and fed back into the agent's conversation context.
     """
     raw_body = await request.body()
-    if not await verify_bland_signature(request, raw_body):
-        return JSONResponse({"error": "invalid signature"}, status_code=401)
+    signature = request.headers.get("X-Webhook-Signature")
+    verified = True
+    if BLAND_WEBHOOK_SECRET:
+        verified = verify_hmac_sha256(BLAND_WEBHOOK_SECRET, raw_body, signature)
+        if not verified:
+            raise HTTPException(status_code=401, detail="Invalid Bland webhook signature")
 
     try:
-        import json as _json
-        body = _json.loads(raw_body)
+        body = await request.json()
     except Exception:
         return JSONResponse({"error": "invalid JSON"}, status_code=400)
 
@@ -290,6 +275,13 @@ async def bland_function_call(request: Request) -> JSONResponse:
     call_id = body.get("call_id", "unknown")
 
     logger.info("Bland function call: %s with params=%s (call_id=%s)", function_name, parameters, call_id)
+    store.record_webhook_event(
+        provider="bland",
+        event_type=f"function:{function_name}",
+        payload=body,
+        verified=verified,
+        call_id=call_id,
+    )
 
     # Log the function call
     function_call_log.append({
@@ -301,9 +293,9 @@ async def bland_function_call(request: Request) -> JSONResponse:
 
     # Dispatch to the appropriate handler
     if function_name == "query_live_metrics":
-        result = _handle_query_live_metrics(parameters)
+        result = _handle_query_live_metrics(parameters, request)
     elif function_name == "trigger_ciba_approval":
-        result = _handle_trigger_ciba_approval(parameters, call_id)
+        result = await _handle_trigger_ciba_approval(parameters, call_id, request)
     elif function_name == "escalate_to_vp":
         result = _handle_escalate_to_vp(parameters, call_id)
     else:
@@ -317,12 +309,19 @@ async def bland_function_call(request: Request) -> JSONResponse:
 # Function call handlers
 # ---------------------------------------------------------------------------
 
-def _handle_query_live_metrics(parameters: dict[str, Any]) -> dict[str, Any]:
+def _handle_query_live_metrics(parameters: dict[str, Any], request: Request) -> dict[str, Any]:
     """Handle a query_live_metrics tool call from the Bland AI agent."""
     service_name = parameters.get("service_name", "api-gateway")
     metric_type = parameters.get("metric_type", "all")
-
-    metrics = _get_mock_metrics(service_name, metric_type)
+    app_agent = getattr(request.app.state, "agent", None)
+    if app_agent is not None:
+        live_metrics = app_agent.infra.get_metrics()
+        service_metrics = live_metrics.get(service_name, live_metrics.get("api-gateway", {}))
+        metrics = service_metrics if metric_type == "all" else {
+            metric_type: service_metrics.get(metric_type, {"status": "no_data"})
+        }
+    else:
+        metrics = _get_mock_metrics(service_name, metric_type)
     logger.info("Returning metrics for %s (%s): %s", service_name, metric_type, metrics)
 
     return {
@@ -334,33 +333,68 @@ def _handle_query_live_metrics(parameters: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _handle_trigger_ciba_approval(parameters: dict[str, Any], call_id: str) -> dict[str, Any]:
+async def _handle_trigger_ciba_approval(
+    parameters: dict[str, Any],
+    call_id: str,
+    request: Request,
+) -> dict[str, Any]:
     """Handle a trigger_ciba_approval tool call.
 
-    In production, this would initiate an Auth0 CIBA backchannel auth request.
-    For demo, we simulate a successful approval.
+    Completes the approval gate for the active incident and lets the agent
+    continue into remediation.
     """
+    auth_req_id = parameters.get("auth_req_id", "")
     engineer_id = parameters.get("engineer_id", "engineer-001")
     action_approved = parameters.get("action_approved", "remediation action")
 
-    logger.info("CIBA approval triggered: engineer=%s action='%s' call=%s", engineer_id, action_approved, call_id)
+    logger.info(
+        "CIBA approval triggered: auth_req_id=%s engineer=%s action='%s' call=%s",
+        auth_req_id,
+        engineer_id,
+        action_approved,
+        call_id,
+    )
 
-    # Update call results with authorization
+    app_agent = getattr(request.app.state, "agent", None)
+    if app_agent is None:
+        return {
+            "success": False,
+            "status": "failed",
+            "message": "No active agent is registered on the application.",
+        }
+
+    if not auth_req_id:
+        return {
+            "success": False,
+            "status": "failed",
+            "message": "Missing auth_req_id for CIBA approval.",
+        }
+
+    approval_result = await app_agent.approve_incident_from_voice(
+        auth_req_id=auth_req_id,
+        call_id=call_id,
+        approval_source="bland_tool_call",
+    )
+
     if call_id in call_results:
         call_results[call_id]["authorization"] = {
-            "authorized": True,
+            "authorized": approval_result.get("status") == "approved",
             "method": "ciba_voice",
             "engineer_id": engineer_id,
             "action_approved": action_approved,
+            "auth_req_id": auth_req_id,
         }
 
     return {
-        "success": True,
-        "auth_request_id": f"ciba-{call_id}",
+        "success": approval_result.get("status") == "approved",
+        "auth_request_id": auth_req_id,
         "engineer_id": engineer_id,
         "action_approved": action_approved,
-        "status": "approved",
-        "message": f"CIBA authorization initiated for {engineer_id}. Approval recorded.",
+        "status": approval_result.get("status", "failed"),
+        "message": approval_result.get(
+            "message",
+            f"CIBA authorization processed for {engineer_id}.",
+        ),
     }
 
 

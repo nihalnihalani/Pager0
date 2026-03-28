@@ -143,17 +143,23 @@ def _build_tools() -> list[dict[str, Any]]:
                 "name": "trigger_ciba_approval",
                 "call_id": "{{call_id}}",
                 "parameters": {
+                    "auth_req_id": "{{input.auth_req_id}}",
                     "engineer_id": "{{input.engineer_id}}",
                     "action_approved": "{{input.action_approved}}",
                 },
             },
             "input_schema": {
                 "example": {
+                    "auth_req_id": "ciba_1234567890ab",
                     "engineer_id": "engineer-001",
                     "action_approved": "Restart affected pods",
                 },
                 "type": "object",
                 "properties": {
+                    "auth_req_id": {
+                        "type": "string",
+                        "description": "The Auth0 CIBA auth request identifier for this incident.",
+                    },
                     "engineer_id": {
                         "type": "string",
                         "description": "The engineer's identifier for CIBA auth.",
@@ -163,7 +169,7 @@ def _build_tools() -> list[dict[str, Any]]:
                         "description": "Description of the action the engineer approved.",
                     },
                 },
-                "required": ["engineer_id", "action_approved"],
+                "required": ["auth_req_id", "engineer_id", "action_approved"],
             },
             "response": {
                 "auth_status": "$.status",
@@ -295,6 +301,7 @@ def make_incident_call(
             "root_cause": incident_context.get("root_cause", "Under investigation."),
             "recommended_action": incident_context.get("recommended_action", "Restart pods."),
             "engineer_id": incident_context.get("engineer_id", "engineer-001"),
+            "auth_req_id": ciba_auth_req_id or incident_context.get("ciba_auth_req_id", ""),
         }
     else:
         payload["task"] = _build_task_prompt(incident_context)
@@ -302,6 +309,7 @@ def make_incident_call(
         # Provide incident data accessible via {{variable}} in task prompt
         payload["request_data"] = {
             "engineer_id": incident_context.get("engineer_id", "engineer-001"),
+            "auth_req_id": ciba_auth_req_id or incident_context.get("ciba_auth_req_id", ""),
         }
 
     try:

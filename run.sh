@@ -11,14 +11,15 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
+PORT="${PORT:-8000}"
 
 banner() {
     echo ""
     echo -e "${CYAN}${BOLD}"
-    echo "  ╔════════════════════════════════════════════════════╗"
-    echo "  ║        Pager0 — Autonomous SRE Agent             ║"
-    echo "  ║    Deep Agents Hackathon | March 27, 2026        ║"
-    echo "  ╚════════════════════════════════════════════════════╝"
+    echo "  ╔═══════════════════════════════════════════════════════╗"
+    echo "  ║             Pager0 — Autonomous SRE Agent              ║"
+    echo "  ║     Deep Agents Hackathon | March 27, 2026           ║"
+    echo "  ╚═══════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 }
 
@@ -26,6 +27,26 @@ step() { echo -e "\n${GREEN}▶ $1${NC}"; }
 warn() { echo -e "${YELLOW}⚠ $1${NC}"; }
 fail() { echo -e "${RED}✗ $1${NC}"; exit 1; }
 ok()   { echo -e "${GREEN}✓ $1${NC}"; }
+
+clear_port() {
+    local port="$1"
+    local pids=""
+    local attempts=0
+
+    while pids=$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null) && [ -n "$pids" ]; do
+        if [ "$attempts" -eq 0 ]; then
+            warn "Port $port in use — stopping existing process"
+        fi
+        kill $pids 2>/dev/null || true
+        sleep 1
+        attempts=$((attempts + 1))
+        if [ "$attempts" -ge 5 ]; then
+            warn "Processes on port $port did not exit cleanly — forcing shutdown"
+            kill -9 $pids 2>/dev/null || true
+            sleep 1
+        fi
+    done
+}
 
 banner
 
@@ -87,12 +108,18 @@ if [ ! -f ".env" ]; then
         cp .env.example .env
         warn "Created .env from template — fill in your API keys for full functionality"
         warn "Edit .env and re-run this script to enable live integrations"
+    elif [ -f "sentinelcall/.env.example" ]; then
+        cp sentinelcall/.env.example .env
+        warn "Created .env from template — fill in your API keys for full functionality"
+        warn "Edit .env and re-run this script to enable live integrations"
     else
         warn "No .env file found. Running in demo mode (all integrations mocked)"
     fi
 else
     ok ".env file found"
 fi
+
+export WEBHOOK_BASE_URL="${WEBHOOK_BASE_URL:-http://localhost:${PORT}}"
 
 # Check which integrations are configured
 echo ""
@@ -122,18 +149,18 @@ check_key "TRUEFOUNDRY_API_KEY"  "TrueFoundry     — AI Gateway"
 check_key "OVERMIND_API_KEY"     "Overmind        — LLM tracing"
 check_key "ANTHROPIC_API_KEY"    "Anthropic       — LLM fallback"
 check_key "GITHUB_TOKEN"        "GitHub          — Macroscope RCA"
+check_key "GITHUB_ROLLBACK_WORKFLOW_ID" "Remediation     — GitHub rollback"
+check_key "REMEDIATION_WEBHOOK_URL" "Remediation     — External executor"
 
 # ------------------------------------------------------------------
 # 5. Kill any existing instance
 # ------------------------------------------------------------------
 step "Checking for existing server..."
-if lsof -ti:8000 &>/dev/null; then
-    warn "Port 8000 in use — stopping existing process"
-    kill $(lsof -ti:8000) 2>/dev/null || true
-    sleep 1
-    ok "Cleared port 8000"
+if lsof -tiTCP:"$PORT" -sTCP:LISTEN &>/dev/null; then
+    clear_port "$PORT"
+    ok "Cleared port $PORT"
 else
-    ok "Port 8000 available"
+    ok "Port $PORT available"
 fi
 
 # ------------------------------------------------------------------
@@ -176,20 +203,20 @@ ok "All modules loaded successfully"
 # ------------------------------------------------------------------
 step "Starting Pager0..."
 echo ""
-echo -e "${BOLD}  Landing:    ${CYAN}http://localhost:8000${NC}"
-echo -e "${BOLD}  Dashboard:  ${CYAN}http://localhost:8000/dashboard${NC}"
-echo -e "${BOLD}  API Status: ${CYAN}http://localhost:8000/api/status${NC}"
-echo -e "${BOLD}  Trigger:    ${CYAN}curl -X POST http://localhost:8000/api/trigger-incident${NC}"
-echo -e "${BOLD}  Debate:     ${CYAN}curl -X POST http://localhost:8000/api/trigger-debate${NC}"
-echo -e "${BOLD}  API Docs:   ${CYAN}http://localhost:8000/docs${NC}"
+echo -e "${BOLD}  Landing:    ${CYAN}http://localhost:${PORT}${NC}"
+echo -e "${BOLD}  Dashboard:  ${CYAN}http://localhost:${PORT}/dashboard${NC}"
+echo -e "${BOLD}  API Status: ${CYAN}http://localhost:${PORT}/api/status${NC}"
+echo -e "${BOLD}  Trigger:    ${CYAN}curl -X POST http://localhost:${PORT}/api/trigger-incident${NC}"
+echo -e "${BOLD}  Debate:     ${CYAN}curl -X POST http://localhost:${PORT}/api/trigger-debate${NC}"
+echo -e "${BOLD}  API Docs:   ${CYAN}http://localhost:${PORT}/docs${NC}"
 echo ""
 echo -e "${GREEN}${BOLD}  Press Ctrl+C to stop the server${NC}"
 echo ""
 
 # Open browser (macOS)
 if command -v open &>/dev/null; then
-    (sleep 2 && open http://localhost:8000) &
+    (sleep 2 && open "http://localhost:${PORT}") &
 fi
 
 # Start server
-exec python3 -m uvicorn sentinelcall.dashboard:app --host 0.0.0.0 --port 8000 --reload --reload-dir sentinelcall
+exec python3 -m uvicorn sentinelcall.dashboard:app --host 0.0.0.0 --port "$PORT" --reload --reload-dir sentinelcall

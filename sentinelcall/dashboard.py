@@ -9,7 +9,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -33,19 +33,13 @@ if ghost_router is not None:
 app.include_router(auth_router)
 # Singleton agent
 agent = SentinelCallAgent()
+app.state.agent = agent
 
 
-# ---------------------------------------------------------------------------
-# Incident payload model for external integrations
-# ---------------------------------------------------------------------------
-
-class IncidentPayload(BaseModel):
-    service: Optional[str] = None
-    incident_type: Optional[str] = None
-    severity: Optional[str] = None
-    description: Optional[str] = None
-    source: Optional[str] = None  # e.g. "datadog", "pagerduty", "prometheus", "manual"
-
+class IncidentTriggerRequest(BaseModel):
+    service: str | None = None
+    incident_type: str | None = None
+    metrics: dict[str, dict[str, Any]] | None = None
 
 # ---------------------------------------------------------------------------
 # HTML Dashboard
@@ -1203,48 +1197,26 @@ async def api_incidents():
 @app.post("/api/trigger-incident")
 async def api_trigger_incident(
     background_tasks: BackgroundTasks,
-    payload: Optional[IncidentPayload] = None,
+    payload: IncidentTriggerRequest | None = None,
 ):
-    """Trigger an incident — accepts optional JSON body for external monitoring systems."""
+    """Trigger a demo incident — runs the full pipeline in the background."""
     if agent.current_status != "idle":
         return JSONResponse(
             {"error": "Agent is already responding to an incident."},
             status_code=409,
         )
-
-    service = payload.service if payload else None
-    incident_type = payload.incident_type if payload else None
-
-    background_tasks.add_task(_run_pipeline, service=service, incident_type=incident_type)
+    request_payload = payload or IncidentTriggerRequest()
+    background_tasks.add_task(
+        _run_pipeline,
+        request_payload.service,
+        request_payload.incident_type,
+        request_payload.metrics,
+    )
     return {
         "status": "triggered",
-        "service": service or "auto-selected",
-        "source": payload.source if payload else "manual",
         "message": "Incident response pipeline started.",
-    }
-
-
-@app.post("/api/webhook/ingest")
-async def api_webhook_ingest(
-    background_tasks: BackgroundTasks,
-    payload: IncidentPayload,
-):
-    """Ingest endpoint for external monitoring systems (Datadog, PagerDuty, etc.)."""
-    if agent.current_status != "idle":
-        return JSONResponse(
-            {"error": "Agent is already responding to an incident."},
-            status_code=409,
-        )
-
-    service = payload.service
-    incident_type = payload.incident_type
-
-    background_tasks.add_task(_run_pipeline, service=service, incident_type=incident_type)
-    return {
-        "status": "triggered",
-        "service": service or "auto-selected",
-        "source": payload.source or "webhook",
-        "message": "Incident ingested from external system.",
+        "service": request_payload.service or "payment-service",
+        "incident_type": request_payload.incident_type or "payment_service_error",
     }
 
 
@@ -1323,9 +1295,10 @@ async def api_events():
 async def _run_pipeline(
     service: str | None = None,
     incident_type: str | None = None,
+    metrics: dict[str, dict[str, Any]] | None = None,
 ):
     """Execute the incident response pipeline."""
-    await agent.run_incident_response(service=service, incident_type=incident_type)
+    await agent.run_incident_response(service=service, incident_type=incident_type, metrics=metrics)
 
 
 # ---------------------------------------------------------------------------

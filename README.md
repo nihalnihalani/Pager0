@@ -210,27 +210,42 @@ Fill in your `.env` file with the necessary credentials. Remember, we use Auth0 
 AUTH0_DOMAIN=           # Auth0 tenant domain
 AUTH0_CLIENT_ID=        # Auth0 application client ID
 AUTH0_CLIENT_SECRET=    # Auth0 application client secret
+AUTH0_REDIRECT_URI=     # Needed only for the standalone Flask Auth0 sample app
 BLAND_API_KEY=          # Bland AI API key
+BLAND_WEBHOOK_SECRET=   # Bland HMAC webhook signing secret
 GHOST_URL=              # Ghost instance URL
 GHOST_ADMIN_API_KEY=    # Ghost Admin API key (id:secret format)
+GHOST_WEBHOOK_SECRET=   # Ghost webhook signing secret
 TRUEFOUNDRY_API_KEY=    # TrueFoundry gateway API key
 TRUEFOUNDRY_ENDPOINT=   # TrueFoundry gateway endpoint URL
+TRUEFOUNDRY_PROVIDER_NAME=anthropic
 OVERMIND_API_KEY=       # Overmind API key
 ANTHROPIC_API_KEY=      # Anthropic API key (for TrueFoundry backend)
+OPENAI_API_KEY=         # Optional OpenAI fallback for the LLM gateway
+GITHUB_REPO=            # Repo scanned by the Macroscope/GitHub RCA flow
+GITHUB_TOKEN=           # Required for live GitHub PR analysis
+GITHUB_ROLLBACK_WORKFLOW_ID=  # Required for GitHub Actions-based rollback execution
+GITHUB_ROLLBACK_REF=main
+PAGER0_DB_PATH=pager0.db
+REMEDIATION_WEBHOOK_URL=      # Optional external remediation executor
+REMEDIATION_WEBHOOK_SECRET=   # HMAC secret for the remediation executor
 ```
+
+For a real end-to-end remediation flow, you must configure at least one remediation backend:
+
+- `GITHUB_ROLLBACK_WORKFLOW_ID` with `GITHUB_TOKEN` and `GITHUB_REPO`, or
+- `REMEDIATION_WEBHOOK_URL` with an executor that performs the rollback/deploy action.
 
 ### 3. Run the Agent & Dashboard
 
-Start the FastAPI backend:
+Start the full local stack:
 ```bash
-uvicorn dashboard:app --reload --port 8000
+./run.sh
 ```
 
-*(Optional)* Start the Next.js frontend in a separate terminal:
+If you want to run the FastAPI app manually instead of using the launcher:
 ```bash
-cd frontend
-npm install
-npm run dev
+python -m uvicorn sentinelcall.dashboard:app --reload --reload-dir sentinelcall --port 8000
 ```
 
 ### 4. Trigger the Demo Incident

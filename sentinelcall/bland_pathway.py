@@ -66,6 +66,7 @@ def build_pathway_nodes(incident_context: dict[str, Any] | None = None) -> list[
     root_cause = ctx.get("root_cause", "{{root_cause}}")
     recommended_action = ctx.get("recommended_action", "{{recommended_action}}")
     engineer_id = ctx.get("engineer_id", "{{engineer_id}}")
+    auth_req_id = ctx.get("auth_req_id", "{{auth_req_id}}")
 
     return [
         {
@@ -137,6 +138,7 @@ def build_pathway_nodes(incident_context: dict[str, Any] | None = None) -> list[
                     "name": "trigger_ciba_approval",
                     "call_id": "{{call_id}}",
                     "parameters": {
+                        "auth_req_id": auth_req_id if auth_req_id != "{{auth_req_id}}" else "{{auth_req_id}}",
                         "engineer_id": engineer_id if engineer_id != "{{engineer_id}}" else "{{engineer_id}}",
                         "action_approved": recommended_action if recommended_action != "{{recommended_action}}" else "{{recommended_action}}",
                     },

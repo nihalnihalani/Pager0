@@ -12,21 +12,22 @@ Ref: https://docs.ghost.org/admin-api/webhooks/creating-a-webhook
      https://docs.ghost.org/webhooks/
 """
 
-import hashlib
-import hmac
 import logging
 from typing import Any
 
 try:
-    from fastapi import APIRouter, Request
+    from fastapi import APIRouter, HTTPException, Request
 except ImportError:
     APIRouter = None  # type: ignore[assignment,misc]
+    HTTPException = None  # type: ignore[assignment,misc]
     Request = None  # type: ignore[assignment,misc]
 
 import requests as http_requests
 
 from sentinelcall.config import GHOST_URL, GHOST_ADMIN_API_KEY, GHOST_WEBHOOK_SECRET
 from sentinelcall.ghost_publisher import GhostPublisher
+from sentinelcall.persistence import store
+from sentinelcall.security import verify_hmac_sha256
 
 logger = logging.getLogger(__name__)
 
@@ -58,50 +59,6 @@ if APIRouter is not None:
     router = APIRouter(tags=["ghost-webhooks"])
 else:
     router = None  # type: ignore[assignment]
-
-# ---------------------------------------------------------------------------
-# Ghost webhook signature verification
-# ---------------------------------------------------------------------------
-
-
-async def verify_ghost_signature(request: Request, body: bytes) -> bool:
-    """Verify the HMAC-SHA256 signature on an incoming Ghost webhook request.
-
-    If ``GHOST_WEBHOOK_SECRET`` is not set the check is skipped (dev/demo mode).
-
-    Args:
-        request: The incoming FastAPI request (used to read headers).
-        body: The raw request body bytes.
-
-    Returns:
-        ``True`` if the signature is valid or verification is disabled;
-        ``False`` if the signature is present but does not match.
-    """
-    secret = GHOST_WEBHOOK_SECRET or None
-    if not secret:
-        logger.warning(
-            "GHOST_WEBHOOK_SECRET not set — skipping Ghost webhook signature verification (demo mode)."
-        )
-        return True
-
-    signature_header = request.headers.get("X-Ghost-Signature", "")
-    if not signature_header:
-        logger.warning("Ghost webhook request missing X-Ghost-Signature header.")
-        return False
-
-    expected = hmac.new(
-        secret.encode("utf-8"),
-        body,
-        hashlib.sha256,
-    ).hexdigest()
-
-    if hmac.compare_digest(expected, signature_header):
-        logger.debug("Ghost webhook signature verified successfully.")
-        return True
-
-    logger.warning("Ghost webhook signature mismatch — rejecting request.")
-    return False
-
 
 # Module-level publisher instance (lazy init)
 _publisher: GhostPublisher | None = None
@@ -177,6 +134,7 @@ def _register_single_webhook(
                 "event": event,
                 "target_url": target_url,
                 "name": f"Pager0: {event}",
+                **({"secret": GHOST_WEBHOOK_SECRET} if GHOST_WEBHOOK_SECRET else {}),
             }
         ]
     }
@@ -256,7 +214,7 @@ def handle_ghost_webhook(data: dict[str, Any]) -> dict[str, Any]:
     title = post.get("title", "")
     tags = [t.get("name", "") for t in post.get("tags", [])]
     slug = post.get("slug", "")
-    url = post.get("url", f"https://pager0.ghost.io/{slug}/")
+    url = post.get("url", f"https://page0.ghost.io/{slug}/")
 
     is_incident = "incident" in tags
     is_critical = any(t in tags for t in ("sev-0", "sev-1", "p0", "p1"))
@@ -291,28 +249,36 @@ if router is not None:
     @router.post("/ghost/webhook/{event}")
     async def ghost_webhook_endpoint(event: str, request: Request) -> dict[str, Any]:
         """Receive Ghost webhook payloads for any event type."""
-        import json as _json
-        from fastapi.responses import JSONResponse as _JSONResponse
-
         raw_body = await request.body()
-        if not await verify_ghost_signature(request, raw_body):
-            return _JSONResponse({"error": "invalid signature"}, status_code=401)
-
-        payload = _json.loads(raw_body)
+        if GHOST_WEBHOOK_SECRET:
+            signature = request.headers.get("X-Ghost-Signature") or request.headers.get("X-Webhook-Signature")
+            if not verify_hmac_sha256(GHOST_WEBHOOK_SECRET, raw_body, signature):
+                raise HTTPException(status_code=401, detail="Invalid Ghost webhook signature")
+        payload = await request.json()
         result = handle_ghost_webhook(payload)
         result["event"] = event
+        store.record_webhook_event(
+            provider="ghost",
+            event_type=event,
+            payload=payload,
+            verified=True,
+        )
         return {"status": "processed", "result": result}
 
     @router.post("/ghost/webhook")
     async def ghost_webhook_endpoint_legacy(request: Request) -> dict[str, Any]:
         """Receive Ghost webhooks on the legacy path (no event in URL)."""
-        import json as _json
-        from fastapi.responses import JSONResponse as _JSONResponse
-
         raw_body = await request.body()
-        if not await verify_ghost_signature(request, raw_body):
-            return _JSONResponse({"error": "invalid signature"}, status_code=401)
-
-        payload = _json.loads(raw_body)
+        if GHOST_WEBHOOK_SECRET:
+            signature = request.headers.get("X-Ghost-Signature") or request.headers.get("X-Webhook-Signature")
+            if not verify_hmac_sha256(GHOST_WEBHOOK_SECRET, raw_body, signature):
+                raise HTTPException(status_code=401, detail="Invalid Ghost webhook signature")
+        payload = await request.json()
         result = handle_ghost_webhook(payload)
+        store.record_webhook_event(
+            provider="ghost",
+            event_type="legacy",
+            payload=payload,
+            verified=True,
+        )
         return {"status": "processed", "result": result}
