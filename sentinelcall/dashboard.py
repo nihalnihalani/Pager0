@@ -14,6 +14,7 @@ from typing import Any
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from sentinelcall.agent import SentinelCallAgent
@@ -32,6 +33,13 @@ if ghost_router is not None:
 app.include_router(auth_router)
 # Singleton agent
 agent = SentinelCallAgent()
+app.state.agent = agent
+
+
+class IncidentTriggerRequest(BaseModel):
+    service: str | None = None
+    incident_type: str | None = None
+    metrics: dict[str, dict[str, Any]] | None = None
 
 # ---------------------------------------------------------------------------
 # HTML Dashboard
@@ -1187,15 +1195,29 @@ async def api_incidents():
 
 
 @app.post("/api/trigger-incident")
-async def api_trigger_incident(background_tasks: BackgroundTasks):
+async def api_trigger_incident(
+    background_tasks: BackgroundTasks,
+    payload: IncidentTriggerRequest | None = None,
+):
     """Trigger a demo incident — runs the full pipeline in the background."""
     if agent.current_status != "idle":
         return JSONResponse(
             {"error": "Agent is already responding to an incident."},
             status_code=409,
         )
-    background_tasks.add_task(_run_pipeline)
-    return {"status": "triggered", "message": "Incident response pipeline started."}
+    request_payload = payload or IncidentTriggerRequest()
+    background_tasks.add_task(
+        _run_pipeline,
+        request_payload.service,
+        request_payload.incident_type,
+        request_payload.metrics,
+    )
+    return {
+        "status": "triggered",
+        "message": "Incident response pipeline started.",
+        "service": request_payload.service or "payment-service",
+        "incident_type": request_payload.incident_type or "payment_service_error",
+    }
 
 
 @app.post("/api/trigger-debate")
@@ -1270,9 +1292,13 @@ async def api_events():
 # Background task runner
 # ---------------------------------------------------------------------------
 
-async def _run_pipeline():
+async def _run_pipeline(
+    service: str | None = None,
+    incident_type: str | None = None,
+    metrics: dict[str, dict[str, Any]] | None = None,
+):
     """Execute the incident response pipeline."""
-    await agent.run_incident_response()
+    await agent.run_incident_response(service=service, incident_type=incident_type, metrics=metrics)
 
 
 # ---------------------------------------------------------------------------

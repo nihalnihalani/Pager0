@@ -12,10 +12,12 @@ AUTH0_SECRET = os.getenv("AUTH0_SECRET", "")
 
 # Bland AI
 BLAND_API_KEY = os.getenv("BLAND_API_KEY", "")
+BLAND_WEBHOOK_SECRET = os.getenv("BLAND_WEBHOOK_SECRET", "")
 
 # Ghost CMS
 GHOST_URL = os.getenv("GHOST_URL", "")
 GHOST_ADMIN_API_KEY = os.getenv("GHOST_ADMIN_API_KEY", "")
+GHOST_WEBHOOK_SECRET = os.getenv("GHOST_WEBHOOK_SECRET", "")
 
 # TrueFoundry
 TRUEFOUNDRY_API_KEY = os.getenv("TRUEFOUNDRY_API_KEY", "")
@@ -39,6 +41,16 @@ ON_CALL_ENGINEER_ID = os.getenv("ON_CALL_ENGINEER_ID", "engineer-001")
 # GitHub
 GITHUB_REPO = os.getenv("GITHUB_REPO", "nihalnihalani/Pager0")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+GITHUB_ROLLBACK_WORKFLOW_ID = os.getenv("GITHUB_ROLLBACK_WORKFLOW_ID", "")
+GITHUB_ROLLBACK_REF = os.getenv("GITHUB_ROLLBACK_REF", "main")
 
 # Webhook
 WEBHOOK_BASE_URL = os.getenv("WEBHOOK_BASE_URL", "http://localhost:8000")
+WEBHOOK_SIGNATURE_TOLERANCE_SECONDS = int(os.getenv("WEBHOOK_SIGNATURE_TOLERANCE_SECONDS", "300"))
+
+# Persistence
+PAGER0_DB_PATH = os.getenv("PAGER0_DB_PATH", "pager0.db")
+
+# Generic remediation hook
+REMEDIATION_WEBHOOK_URL = os.getenv("REMEDIATION_WEBHOOK_URL", "")
+REMEDIATION_WEBHOOK_SECRET = os.getenv("REMEDIATION_WEBHOOK_SECRET", "")

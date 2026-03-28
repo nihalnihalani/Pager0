@@ -16,15 +16,18 @@ import logging
 from typing import Any
 
 try:
-    from fastapi import APIRouter, Request
+    from fastapi import APIRouter, HTTPException, Request
 except ImportError:
     APIRouter = None  # type: ignore[assignment,misc]
+    HTTPException = None  # type: ignore[assignment,misc]
     Request = None  # type: ignore[assignment,misc]
 
 import requests as http_requests
 
-from sentinelcall.config import GHOST_URL, GHOST_ADMIN_API_KEY
+from sentinelcall.config import GHOST_URL, GHOST_ADMIN_API_KEY, GHOST_WEBHOOK_SECRET
 from sentinelcall.ghost_publisher import GhostPublisher
+from sentinelcall.persistence import store
+from sentinelcall.security import verify_hmac_sha256
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +134,7 @@ def _register_single_webhook(
                 "event": event,
                 "target_url": target_url,
                 "name": f"Page0: {event}",
+                **({"secret": GHOST_WEBHOOK_SECRET} if GHOST_WEBHOOK_SECRET else {}),
             }
         ]
     }
@@ -245,14 +249,36 @@ if router is not None:
     @router.post("/ghost/webhook/{event}")
     async def ghost_webhook_endpoint(event: str, request: Request) -> dict[str, Any]:
         """Receive Ghost webhook payloads for any event type."""
+        raw_body = await request.body()
+        if GHOST_WEBHOOK_SECRET:
+            signature = request.headers.get("X-Ghost-Signature") or request.headers.get("X-Webhook-Signature")
+            if not verify_hmac_sha256(GHOST_WEBHOOK_SECRET, raw_body, signature):
+                raise HTTPException(status_code=401, detail="Invalid Ghost webhook signature")
         payload = await request.json()
         result = handle_ghost_webhook(payload)
         result["event"] = event
+        store.record_webhook_event(
+            provider="ghost",
+            event_type=event,
+            payload=payload,
+            verified=True,
+        )
         return {"status": "processed", "result": result}
 
     @router.post("/ghost/webhook")
     async def ghost_webhook_endpoint_legacy(request: Request) -> dict[str, Any]:
         """Receive Ghost webhooks on the legacy path (no event in URL)."""
+        raw_body = await request.body()
+        if GHOST_WEBHOOK_SECRET:
+            signature = request.headers.get("X-Ghost-Signature") or request.headers.get("X-Webhook-Signature")
+            if not verify_hmac_sha256(GHOST_WEBHOOK_SECRET, raw_body, signature):
+                raise HTTPException(status_code=401, detail="Invalid Ghost webhook signature")
         payload = await request.json()
         result = handle_ghost_webhook(payload)
+        store.record_webhook_event(
+            provider="ghost",
+            event_type="legacy",
+            payload=payload,
+            verified=True,
+        )
         return {"status": "processed", "result": result}

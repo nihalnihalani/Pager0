@@ -59,16 +59,15 @@ class TextScramble {
     let complete = 0
 
     for (let i = 0, n = this.queue.length; i < n; i++) {
-      let { from, to, start, end, char } = this.queue[i]
+      const { from, to, start, end } = this.queue[i]
       if (this.frame >= end) {
         complete++
         output += to
       } else if (this.frame >= start) {
-        if (!char || Math.random() < 0.28) {
-          char = this.chars[Math.floor(Math.random() * this.chars.length)]
-          this.queue[i].char = char
+        if (!this.queue[i].char || Math.random() < 0.28) {
+          this.queue[i].char = this.chars[Math.floor(Math.random() * this.chars.length)]
         }
-        output += `<span class="dud">${char}</span>`
+        output += `<span class="dud">${this.queue[i].char}</span>`
       } else {
         output += from
       }
@@ -86,40 +85,49 @@ class TextScramble {
 
 const ScrambledTitle: React.FC = () => {
   const elementRef = useRef<HTMLHeadingElement>(null)
-  const scramblerRef = useRef<TextScramble | null>(null)
-  const [mounted, setMounted] = useState(false)
+  const timeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
-    if (elementRef.current && !scramblerRef.current) {
-      scramblerRef.current = new TextScramble(elementRef.current)
-      setMounted(true)
+    if (!elementRef.current) {
+      return
     }
-  }, [])
 
-  useEffect(() => {
-    if (mounted && scramblerRef.current) {
-      const phrases = [
-        'Page0',
-        'Autonomous SRE Agent',
-        '47 Second Resolution',
-        'Zero Human Intervention',
-        'Because 3AM Pages',
-        'Shouldn\'t Need a Human'
-      ]
+    const scrambler = new TextScramble(elementRef.current)
+    const phrases = [
+      "Page0",
+      "Autonomous SRE Agent",
+      "47 Second Resolution",
+      "Zero Human Intervention",
+      "Because 3AM Pages",
+      "Shouldn't Need a Human",
+    ]
 
-      let counter = 0
-      const next = () => {
-        if (scramblerRef.current) {
-          scramblerRef.current.setText(phrases[counter]).then(() => {
-            setTimeout(next, 2000)
-          })
-          counter = (counter + 1) % phrases.length
-        }
+    let counter = 0
+    let cancelled = false
+
+    const next = () => {
+      if (cancelled) {
+        return
       }
 
-      next()
+      void scrambler.setText(phrases[counter]).then(() => {
+        if (cancelled) {
+          return
+        }
+        timeoutRef.current = window.setTimeout(next, 2000)
+      })
+      counter = (counter + 1) % phrases.length
     }
-  }, [mounted])
+
+    next()
+
+    return () => {
+      cancelled = true
+      if (timeoutRef.current !== null) {
+        window.clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [])
 
   return (
     <h1
