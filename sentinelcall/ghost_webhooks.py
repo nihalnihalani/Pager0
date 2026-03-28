@@ -133,7 +133,7 @@ def _register_single_webhook(
             {
                 "event": event,
                 "target_url": target_url,
-                "name": f"Page0: {event}",
+                "name": f"Pager0: {event}",
                 **({"secret": GHOST_WEBHOOK_SECRET} if GHOST_WEBHOOK_SECRET else {}),
             }
         ]

@@ -224,7 +224,7 @@ class SentinelCallAgent:
                     prompt=anomaly_text,
                     severity=severity,
                     system_prompt=(
-                        "You are Pager0, an autonomous SRE agent. "
+            "You are Pager0, an autonomous SRE agent. "
                         "Analyze these anomalies and provide root cause, "
                         "impact assessment, and remediation steps."
                     ),
