@@ -126,7 +126,7 @@ class SentinelCallAgent:
         pipeline_start = time.time()
         service = service or "payment-service"
         incident_id = f"INC-{uuid.uuid4().hex[:8]}"
-        incident_type = "payment_service_error"
+        incident_type = "cache_failure"
 
         incident_record: dict[str, Any] = {
             "incident_id": incident_id,
@@ -271,6 +271,7 @@ class SentinelCallAgent:
                 "pr_number": macroscope_result.get("pr_number"),
                 "pr_title": macroscope_result.get("pr_title"),
                 "confidence": macroscope_result.get("confidence"),
+                "explanation": macroscope_result.get("explanation", ""),
             }
             incident_record["steps"]["macroscope_rca"] = {
                 "duration_ms": round(step_time * 1000, 1),
@@ -299,7 +300,11 @@ class SentinelCallAgent:
             auth_req_id = ciba_result.get("auth_req_id", "")
 
             # Fetch a token from the vault to demonstrate the feature
-            vault_token = self.token_vault.get_token("github")
+            try:
+                vault_token = self.token_vault.get_token("github")
+            except Exception as exc:
+                logger.warning("Token Vault unavailable (%s) — using mock token", exc)
+                vault_token = {"service": "github", "source": "mock"}
             step_time = time.time() - step_start
 
             incident_record["ciba_auth_req_id"] = auth_req_id

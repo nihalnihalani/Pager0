@@ -78,8 +78,8 @@ class GhostPublisher:
         if not self.admin_api_key or not pyjwt:
             raise RuntimeError("Cannot generate Ghost token: API key or PyJWT unavailable.")
 
-        key_id, secret_hex = self.admin_api_key.split(":")
-        secret_bytes = bytes.fromhex(secret_hex)
+        key_id, secret_hex = self.admin_api_key.strip().split(":")
+        secret_bytes = bytes.fromhex(secret_hex.strip())
 
         iat = int(time.time())
         payload = {

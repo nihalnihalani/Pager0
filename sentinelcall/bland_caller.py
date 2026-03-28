@@ -268,12 +268,11 @@ def make_incident_call(
     payload: dict[str, Any] = {
         "phone_number": phone_number,
         "voice": "Josh",
-        "wait_for_greeting": True,
+        "wait_for_greeting": False,
         "record": True,
         "max_duration": 5,
         "model": "base",
         "temperature": 0.4,
-        "webhook": f"{WEBHOOK_BASE_URL}/bland/webhook",
         "metadata": {
             "incident_id": incident_context.get("incident_id", f"INC-{uuid.uuid4().hex[:8]}"),
             "severity": incident_context.get("severity", "SEV-2"),
@@ -284,25 +283,18 @@ def make_incident_call(
     if ciba_auth_req_id:
         payload["metadata"]["ciba_auth_req_id"] = ciba_auth_req_id
 
-    # Pathway and task are mutually exclusive
-    if pathway_id:
-        payload["pathway_id"] = pathway_id
-        # Pass incident context as request_data so pathway can use {{variable}} syntax
-        payload["request_data"] = {
-            "service": incident_context.get("service", "unknown"),
-            "severity": incident_context.get("severity", "SEV-2"),
-            "description": incident_context.get("description", "Anomaly detected."),
-            "root_cause": incident_context.get("root_cause", "Under investigation."),
-            "recommended_action": incident_context.get("recommended_action", "Restart pods."),
-            "engineer_id": incident_context.get("engineer_id", "engineer-001"),
-        }
-    else:
-        payload["task"] = _build_task_prompt(incident_context)
+    # Bland requires webhook URL to start with https:// — skip if running locally
+    if WEBHOOK_BASE_URL.startswith("https://"):
+        payload["webhook"] = f"{WEBHOOK_BASE_URL}/bland/webhook"
+
+    # Always use task prompt. Only include tools when running with a public HTTPS
+    # URL — Bland rejects tool URLs that don't start with https://.
+    payload["task"] = _build_task_prompt(incident_context)
+    if WEBHOOK_BASE_URL.startswith("https://"):
         payload["tools"] = _build_tools()
-        # Provide incident data accessible via {{variable}} in task prompt
-        payload["request_data"] = {
-            "engineer_id": incident_context.get("engineer_id", "engineer-001"),
-        }
+    payload["request_data"] = {
+        "engineer_id": incident_context.get("engineer_id", "engineer-001"),
+    }
 
     try:
         logger.info("[REAL] Sending Bland AI call to %s", phone_number)
@@ -326,7 +318,10 @@ def make_incident_call(
 
         return data
     except requests.RequestException as exc:
-        logger.error("[REAL] Bland AI call failed: %s — falling back to mock.", exc)
+        try:
+            logger.error("[REAL] Bland AI call failed: %s — response body: %s", exc, exc.response.text if hasattr(exc, 'response') and exc.response is not None else "N/A")
+        except Exception:
+            logger.error("[REAL] Bland AI call failed: %s — falling back to mock.", exc)
         result = _mock_call_response(phone_number, incident_context)
         result["fallback_reason"] = str(exc)
         return result
@@ -346,7 +341,7 @@ def get_call_status(call_id: str) -> dict[str, Any]:
             "call_length": 0.79,
             "answered_by": "human",
             "call_ended_by": "ASSISTANT",
-            "summary": "Page0 briefed engineer on SEV-2 api-gateway incident. Engineer approved pod restart.",
+            "summary": "Page0 briefed engineer on SEV-1 payment-service incident. Engineer approved rollback of PR #47.",
             "mock": True,
         }
 
@@ -381,7 +376,7 @@ def get_call_transcript(call_id: str) -> dict[str, Any]:
         return {
             "call_id": call_id,
             "transcripts": [
-                {"id": 1, "user": "assistant", "text": "Hello, this is Page0. We've detected a SEV-2 incident on api-gateway.", "created_at": "2026-03-27T00:00:01Z"},
+                {"id": 1, "user": "assistant", "text": "Hello, this is Page0. We've detected a SEV-1 incident on payment-service.", "created_at": "2026-03-27T00:00:01Z"},
                 {"id": 2, "user": "user", "text": "What are the current metrics?", "created_at": "2026-03-27T00:00:05Z"},
                 {"id": 3, "user": "agent-action", "text": "Calling tool: QueryLiveMetrics", "created_at": "2026-03-27T00:00:06Z"},
                 {"id": 4, "user": "assistant", "text": "Error rate is at 12.4%, p99 latency 2,340ms, CPU at 89%.", "created_at": "2026-03-27T00:00:08Z"},
@@ -390,7 +385,7 @@ def get_call_transcript(call_id: str) -> dict[str, Any]:
                 {"id": 7, "user": "assistant", "text": "Authorization received. Triggering CIBA approval and initiating remediation. Thank you.", "created_at": "2026-03-27T00:00:18Z"},
             ],
             "concatenated_transcript": (
-                "Assistant: Hello, this is Page0. We've detected a SEV-2 incident on api-gateway.\n"
+                "Assistant: Hello, this is Page0. We've detected a SEV-1 incident on payment-service.\n"
                 "User: What are the current metrics?\n"
                 "Assistant: Error rate is at 12.4%, p99 latency 2,340ms, CPU at 89%.\n"
                 "User: Okay, go ahead and restart the affected pods.\n"

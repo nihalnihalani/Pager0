@@ -63,7 +63,7 @@ class MacroscopeAnalyzer:
     def _gh_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {"Accept": "application/vnd.github.v3+json"}
         if self.github_token:
-            headers["Authorization"] = f"Bearer {self.github_token}"
+            headers["Authorization"] = f"token {self.github_token}"
         return headers
 
     def _gh_get_paginated(

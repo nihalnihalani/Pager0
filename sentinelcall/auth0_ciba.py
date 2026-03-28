@@ -113,7 +113,10 @@ class CIBAManager:
             dict with ``auth_req_id``, ``expires_in``, ``interval``, ``status``.
         """
         if self.is_live:
-            return self._initiate_live(engineer_id, action)
+            try:
+                return self._initiate_live(engineer_id, action)
+            except Exception as exc:
+                logger.warning("CIBA live flow failed (%s) — falling back to simulated", exc)
         return self._initiate_simulated(engineer_id, action)
 
     # ------------------------------------------------------------------
